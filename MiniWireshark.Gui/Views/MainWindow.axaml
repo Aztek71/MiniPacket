@@ -1,0 +1,108 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MiniWireshark.Gui.ViewModels"
+        xmlns:conv="using:MiniWireshark.Gui.Converters"
+        x:Class="MiniWireshark.Gui.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Mini Wireshark"
+        Width="1150" Height="760">
+
+    <Window.Resources>
+        <conv:ProtocolToBrushConverter x:Key="ProtocolToBrushConverter" />
+    </Window.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8">
+
+        <!-- Barre d'outils : sélection d'interface, filtre BPF (capture), Démarrer/Arrêter -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <ComboBox Width="340"
+                      ItemsSource="{Binding Interfaces}"
+                      SelectedItem="{Binding SelectedInterface}"
+                      PlaceholderText="Choisis une interface réseau">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Description}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBox Width="220"
+                     Watermark="Filtre BPF capture (ex: tcp port 443)"
+                     Text="{Binding CaptureFilterText}" />
+
+            <Button Content="▶ Démarrer" Command="{Binding StartCommand}" />
+            <Button Content="■ Arrêter" Command="{Binding StopCommand}" />
+            <Button Content="📊 Statistiques" Command="{Binding OpenStatsCommand}" />
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,0,0"
+                       Opacity="0.8" />
+        </StackPanel>
+
+        <!-- Barre de filtre display : filtre les paquets déjà capturés, façon Wireshark (tcp.port == 443) -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBox x:Name="DisplayFilterTextBox"
+                     Width="500"
+                     Watermark="Filtre display (ex: tcp.port == 443 and ip.addr == 192.168.1.8)"
+                     Text="{Binding DisplayFilterText}" />
+
+            <Button Content="Appliquer" Command="{Binding ApplyFilterCommand}" />
+            <Button Content="Effacer" Command="{Binding ClearFilterCommand}" />
+	    <Button Content="Suivre le flux TCP" Command="{Binding FollowTcpStreamCommand}" />
+
+            <!-- Texte vide quand FilterErrorMessage est null : pas besoin de convertisseur de visibilité. -->
+            <TextBlock Text="{Binding FilterErrorMessage}"
+                       VerticalAlignment="Center"
+                       Foreground="OrangeRed"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Liste de paquets (gauche) + arbre de dissection du paquet sélectionné (droite) -->
+        <Grid Grid.Row="2" ColumnDefinitions="2*,4,1*">
+
+            <DataGrid Grid.Column="0"
+                      ItemsSource="{Binding FilteredPackets}"
+                      SelectedItem="{Binding SelectedPacket}"
+                      IsReadOnly="True"
+                      GridLinesVisibility="Horizontal"
+                      AutoGenerateColumns="False">
+                <DataGrid.Styles>
+                    <!-- Le DataContext d'une DataGridRow est l'item de la ligne (CapturedPacket) :
+                         on peut donc binder directement sa propriété TopProtocol. -->
+                    <Style Selector="DataGridRow">
+                        <Setter Property="Background"
+                                Value="{Binding TopProtocol, Converter={StaticResource ProtocolToBrushConverter}}" />
+                    </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="No."         Binding="{Binding Number}"    Width="50" />
+                    <DataGridTextColumn Header="Heure"       Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="110" />
+                    <DataGridTextColumn Header="Source"      Binding="{Binding Source}"      Width="150" />
+                    <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="150" />
+                    <DataGridTextColumn Header="Protocole"   Binding="{Binding TopProtocol}" Width="80" />
+                    <DataGridTextColumn Header="Long."       Binding="{Binding Length}"      Width="60" />
+                    <DataGridTextColumn Header="Info"        Binding="{Binding Info}"        Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <GridSplitter Grid.Column="1" Background="Gray" />
+
+            <TreeView Grid.Column="2" ItemsSource="{Binding DetailNodes}">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <TextBlock Text="{Binding Header}" TextWrapping="Wrap" />
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+        </Grid>
+
+        <!-- Barre de statut -->
+        <TextBlock Grid.Row="3"
+                   Text="{Binding Packets.Count, StringFormat='Total capturé : {0} paquet(s)'}"
+                   Margin="0,8,0,0"
+                   Opacity="0.6" />
+
+    </Grid>
+</Window>

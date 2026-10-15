@@ -1,0 +1,88 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MiniWireshark.Gui.ViewModels"
+        x:Class="MiniWireshark.Gui.Views.StatsWindow"
+        x:DataType="vm:StatsWindowViewModel"
+        Title="Statistiques en direct"
+        Width="620" Height="700">
+
+    <ScrollViewer Margin="12">
+        <StackPanel Spacing="16">
+
+            <!-- Totaux -->
+            <Grid ColumnDefinitions="*,*,*,*">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Paquets" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding TotalPackets}" FontSize="20" FontWeight="Bold" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Volume" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding TotalBytesDisplay}" FontSize="20" FontWeight="Bold" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Flux TCP" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding ActiveTcpStreams}" FontSize="20" FontWeight="Bold" />
+                </StackPanel>
+                <StackPanel Grid.Column="3">
+                    <TextBlock Text="Paquets/s" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding CurrentPacketsPerSecond}" FontSize="20" FontWeight="Bold" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Graphique paquets/seconde (derniere minute) -->
+            <StackPanel>
+                <TextBlock Text="Paquets par seconde (derniere minute)" FontWeight="Bold" Margin="0,0,0,6" />
+                <Border Height="104" BorderBrush="Gray" BorderThickness="0,0,0,1">
+                    <ItemsControl ItemsSource="{Binding PacketsPerSecondBars}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" Spacing="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Rectangle Width="7" Height="{Binding}" Fill="#6495ED" VerticalAlignment="Bottom" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+
+            <!-- Repartition par protocole -->
+            <StackPanel>
+                <TextBlock Text="Repartition par protocole" FontWeight="Bold" Margin="0,0,0,6" />
+                <ItemsControl ItemsSource="{Binding ProtocolBreakdown}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="70,*,50" Margin="0,2">
+                                <TextBlock Grid.Column="0" Text="{Binding Protocol}" />
+                                <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Percentage}"
+                                             Height="14" MinHeight="14" Margin="4,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" Opacity="0.8" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Top talkers -->
+            <StackPanel>
+                <TextBlock Text="Top talkers (par volume)" FontWeight="Bold" Margin="0,0,0,6" />
+                <ItemsControl ItemsSource="{Binding TopTalkers}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*,80,80" Margin="0,2">
+                                <TextBlock Grid.Column="0" Text="{Binding Address}" />
+                                <TextBlock Grid.Column="1" Text="{Binding PacketCount}" HorizontalAlignment="Right" Opacity="0.8" />
+                                <TextBlock Grid.Column="2" Text="{Binding ByteCountDisplay}" HorizontalAlignment="Right" FontWeight="Bold" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <Button Content="Fermer" HorizontalAlignment="Right" Click="OnCloseClick" />
+
+        </StackPanel>
+    </ScrollViewer>
+</Window>

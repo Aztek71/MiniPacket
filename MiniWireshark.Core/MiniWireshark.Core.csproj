@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MiniWireshark</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Wrapper autour de npcap (Windows) / libpcap (Linux/Mac) -->
+    <PackageReference Include="SharpPcap" Version="6.3.0" />
+  </ItemGroup>
+
+  <!--
+    Filet de sécurité : n'inclut QUE ces trois dossiers dans la compilation de Core.
+    Empêche Core de récupérer par erreur des fichiers d'un autre projet (Console/Gui)
+    qui seraient mal placés dans ce dossier — ce qui provoque l'erreur CS8805.
+  -->
+  <ItemGroup>
+    <Compile Remove="**\*.cs" />
+    <Compile Include="Core\**\*.cs" />
+    <Compile Include="Dissectors\**\*.cs" />
+    <Compile Include="Models\**\*.cs" />
+    <Compile Include="Filtering\**\*.cs" />
+    <Compile Include="Streams\**\*.cs" />
+    <Compile Include="Stats\**\*.cs" />
+    <Compile Include="Decryption\**\*.cs" />
+    <Compile Include="Http\**\*.cs" />
+  </ItemGroup>
+
+</Project>

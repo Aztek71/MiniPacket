@@ -1,0 +1,88 @@
+
+# ==============================
+# IDE - JetBrains Rider
+# ==============================
+.idea/
+.run/
+
+# ==============================
+# IDE - Visual Studio / VS Code
+# ==============================
+.vscode/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ==============================
+# .NET - Build artifacts
+# ==============================
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rtifacts/
+[Bb]uild/
+
+# ==============================
+# .NET - Generated files
+# ==============================
+*.dll
+*.exe
+*.pdb
+*.mdb
+*.cache
+project.lock.json
+project.fragment.lock.json
+**/Generated/
+**/TemporaryGeneratedFile_*
+
+# ==============================
+# Test results and coverage
+# ==============================
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# ==============================
+# NuGet
+# ==============================
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Keep NuGet configuration if needed
+!NuGet.Config
+
+# ==============================
+# Logs and temporary files
+# ==============================
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ==============================
+# OS-generated files
+# ==============================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==============================
+# Local environment and secrets
+# ==============================
+.env
+.env.*
+!.env.example
+!.env.template

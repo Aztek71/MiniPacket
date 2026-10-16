@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using MiniWireshark.Core.Analysis;
 using MiniWireshark.Models;
 
 namespace MiniWireshark.Core.Filtering;
@@ -24,6 +25,14 @@ internal sealed record FieldDescriptor(FieldKind Kind, Func<CapturedPacket, obje
 /// </summary>
 internal static class FieldRegistry
 {
+    private static readonly string[] TcpAnalysisCodes =
+    {
+        "retransmission", "out_of_order", "lost_segment", "duplicate_ack", "zero_window",
+        "keep_alive", "reset", "connection_refused", "syn_no_response"
+    };
+
+    private static bool HasAnomaly(CapturedPacket p, string code) => p.Anomalies.Any(a => a.Code == code);
+    
     public static readonly IReadOnlyDictionary<string, FieldDescriptor> Fields =
         new Dictionary<string, FieldDescriptor>(StringComparer.OrdinalIgnoreCase)
         {
@@ -105,6 +114,21 @@ internal static class FieldRegistry
             ["dns.qry.name"] = new(FieldKind.String, p => p.Dns is { Questions.Count: > 0 } dns ? dns.Questions[0].Name : null),
             ["dns.flags.response"] = new(FieldKind.Flag, p => p.Dns != null ? (bool?)p.Dns.IsResponse : null),
             
+            // Anomaly
+            ["anomaly"] = new(FieldKind.Protocol, p => p.Anomalies.Count > 0),
+            ["anomaly.warning"] = new(FieldKind.Protocol, p => p.Anomalies.Any(a => a.Severity >= AnomalySeverity.Warning)),
+            ["anomaly.error"] = new(FieldKind.Protocol, p => p.Anomalies.Any(a => a.Severity == AnomalySeverity.Error)),
+            ["tcp.analysis.flags"] = new(FieldKind.Protocol, p => p.Anomalies.Any(a => TcpAnalysisCodes.Contains(a.Code))),
+            ["tcp.analysis.retransmission"] = new(FieldKind.Protocol, p => HasAnomaly(p, "retransmission")),
+            ["tcp.analysis.out_of_order"] = new(FieldKind.Protocol, p => HasAnomaly(p, "out_of_order")),
+            ["tcp.analysis.lost_segment"] = new(FieldKind.Protocol, p => HasAnomaly(p, "lost_segment")),
+            ["tcp.analysis.duplicate_ack"] = new(FieldKind.Protocol, p => HasAnomaly(p, "duplicate_ack")),
+            ["tcp.analysis.zero_window"] = new(FieldKind.Protocol, p => HasAnomaly(p, "zero_window")),
+            ["tcp.analysis.keep_alive"] = new(FieldKind.Protocol, p => HasAnomaly(p, "keep_alive")),
+            ["tcp.analysis.reset"] = new(FieldKind.Protocol, p => HasAnomaly(p, "reset")),
+            ["tcp.analysis.connection_refused"] = new(FieldKind.Protocol, p => HasAnomaly(p, "connection_refused")),
+            ["tcp.analysis.syn_no_response"] = new(FieldKind.Protocol, p => HasAnomaly(p, "syn_no_response")),
+
             // TLS
             ["tls"] = new(FieldKind.Protocol, p => p.Tls != null),
             ["tls.handshake.extensions_server_name"] = new(FieldKind.String, p => p.Tls?.ServerName),

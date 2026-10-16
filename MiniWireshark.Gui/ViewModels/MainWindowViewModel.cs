@@ -14,6 +14,7 @@ namespace MiniWireshark.Gui.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly DispatcherTimer _anomalyTimer;
     private readonly PacketCaptureService _captureService = new();
 
     /// <summary>Le filtre display actuellement actif — DisplayFilter.AcceptAll si aucun filtre n'est appliqué.</summary>
@@ -73,6 +74,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 UpdateStatusMessage();
             });
         };
+        // Un SYN sans reponse ne se repere qu'apres coup : on verifie une fois par seconde pendant la capture.
+        _anomalyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _anomalyTimer.Tick += (_, _) => FlagExpiredSyns();
+        _anomalyTimer.Start();
     }
 
     partial void OnSelectedPacketChanged(CapturedPacket? value)
@@ -189,6 +194,16 @@ public partial class MainWindowViewModel : ViewModelBase
             DataContext = new StatsWindowViewModel(_captureService)
         };
         window.Show();
+    }
+
+    /// <summary>Marque les SYN restes sans reponse. Execute sur le thread UI : la liste reagit au changement.</summary>
+    private void FlagExpiredSyns()
+    {
+        if (!IsCapturing)
+            return;
+
+        foreach (var (packet, anomaly) in _captureService.Analyzer.ExpirePendingSyns())
+            packet.AddAnomaly(anomaly);
     }
 
     private void UpdateStatusMessage()

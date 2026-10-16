@@ -72,7 +72,7 @@
                          on peut donc binder directement sa propriété TopProtocol. -->
                     <Style Selector="DataGridRow">
                         <Setter Property="Background"
-                                Value="{Binding TopProtocol, Converter={StaticResource ProtocolToBrushConverter}}" />
+                                                                Value="{Binding RowColorKey, Converter={StaticResource ProtocolToBrushConverter}}" />
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>

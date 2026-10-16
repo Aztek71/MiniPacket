@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using MiniWireshark.Core.Analysis;
 using MiniWireshark.Dissectors;
 
 namespace MiniWireshark.Models;
@@ -5,9 +7,14 @@ namespace MiniWireshark.Models;
 /// <summary>
 /// Represente un paquet capture, une fois entierement disseque.
 /// C'est l'equivalent d'une "ligne" dans la liste de paquets de Wireshark.
+/// Implemente INotifyPropertyChanged : une anomalie detectee apres coup (SYN sans reponse) met la ligne a jour.
 /// </summary>
-public sealed class CapturedPacket
+public sealed class CapturedPacket : INotifyPropertyChanged
 {
+    private readonly List<PacketAnomaly> _anomalies = new();
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Number { get; init; }
     public DateTime Timestamp { get; init; }
     public int Length { get; init; }
@@ -24,6 +31,37 @@ public sealed class CapturedPacket
 
     /// <summary>Numero de flux TCP (comme "tcp.stream" dans Wireshark) — null si le paquet n'a pas de couche TCP.</summary>
     public int? TcpStreamIndex { get; set; }
+
+    /// <summary>Anomalies relevees sur ce paquet (retransmission, RST, TTL tres bas...).</summary>
+    public IReadOnlyList<PacketAnomaly> Anomalies => _anomalies;
+
+    /// <summary>
+    /// Ajoute une anomalie. Avant la publication du paquet (thread de capture) personne n'ecoute encore ;
+    /// apres, l'appelant doit etre sur le thread UI, ou les liaisons de la liste reagissent.
+    /// </summary>
+    public void AddAnomaly(PacketAnomaly anomaly)
+    {
+        if (_anomalies.Any(a => a.Code == anomaly.Code && a.Label == anomaly.Label))
+            return;
+
+        _anomalies.Add(anomaly);
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Anomalies)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Info)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RowColorKey)));
+    }
+
+    /// <summary>La gravite la plus elevee parmi les anomalies, ou null s'il n'y en a pas.</summary>
+    public AnomalySeverity? HighestSeverity => _anomalies.Count == 0 ? null : _anomalies.Max(a => a.Severity);
+
+    /// <summary>
+    /// Cle de couleur de la ligne : une anomalie d'avertissement ou d'erreur prime sur la couleur du protocole.
+    /// </summary>
+    public string RowColorKey => HighestSeverity switch
+    {
+        AnomalySeverity.Error => "ANOMALY_ERROR",
+        AnomalySeverity.Warning => "ANOMALY_WARNING",
+        _ => TopProtocol
+    };
 
     /// <summary>Protocole "le plus haut" detecte, pour la colonne Protocol.</summary>
     public string TopProtocol =>
@@ -50,7 +88,21 @@ public sealed class CapturedPacket
         IPv4 is not null ? IPv4.DestinationAddress.ToString() :
         Ethernet?.DestinationMac.ToString() ?? "?";
 
+    /// <summary>Colonne Info : les etiquettes d'anomalies entre crochets, puis le resume du paquet.</summary>
     public string Info
+    {
+        get
+        {
+            string summary = BaseInfo;
+            if (_anomalies.Count == 0)
+                return summary;
+
+            string tags = string.Join(" ", _anomalies.Select(a => $"[{a.Label}]"));
+            return summary.Length == 0 ? tags : $"{tags} {summary}";
+        }
+    }
+
+    private string BaseInfo
     {
         get
         {

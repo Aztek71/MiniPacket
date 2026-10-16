@@ -27,6 +27,7 @@
     <Compile Include="Stats\**\*.cs" />
     <Compile Include="Decryption\**\*.cs" />
     <Compile Include="Http\**\*.cs" />
+    <Compile Include="Analysis\**\*.cs" />
   </ItemGroup>
 
 </Project>

@@ -22,6 +22,8 @@ public sealed class ProtocolToBrushConverter : IValueConverter
     private static readonly IBrush Dns = new SolidColorBrush(Color.FromArgb(0x28, 0x40, 0xE0, 0xD0));      // turquoise
     private static readonly IBrush Tls = new SolidColorBrush(Color.FromArgb(0x28, 0x93, 0x70, 0xDB));      // violet
     private static readonly IBrush Default = Brushes.Transparent;
+    private static readonly IBrush AnomalyWarning = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0x8C, 0x00));   // orange vif
+    private static readonly IBrush AnomalyError = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0x30, 0x30));     // rouge
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -37,6 +39,8 @@ public sealed class ProtocolToBrushConverter : IValueConverter
             "VLAN (802.1Q)" => Vlan,
             "TLS" => Tls,
             "DNS" => Dns,
+            "ANOMALY_WARNING" => AnomalyWarning,
+            "ANOMALY_ERROR" => AnomalyError,
             _ => Default
         };
     }

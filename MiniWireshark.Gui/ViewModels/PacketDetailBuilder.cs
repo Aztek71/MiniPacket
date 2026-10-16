@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using MiniWireshark.Core.Analysis;
 using MiniWireshark.Models;
 
 namespace MiniWireshark.Gui.ViewModels;
@@ -124,6 +125,22 @@ public static class PacketDetailBuilder
                     answers.Add($"{a.Name}: type {a.TypeName}, ttl {a.Ttl}" + (a.Data is not null ? $", data {a.Data}" : string.Empty));
             }
 
+            roots.Add(node);
+        }
+
+        if (packet.Anomalies.Count > 0)
+        {
+            var node = new PacketDetailNode($"Analyse : {packet.Anomalies.Count} anomalie(s) détectée(s)");
+            foreach (var anomaly in packet.Anomalies)
+            {
+                string severity = anomaly.Severity switch
+                {
+                    AnomalySeverity.Error => "Erreur",
+                    AnomalySeverity.Warning => "Attention",
+                    _ => "Info"
+                };
+                node.Add($"[{severity}] {anomaly.Label} : {anomaly.Description}");
+            }
             roots.Add(node);
         }
 

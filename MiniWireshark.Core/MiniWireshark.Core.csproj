@@ -28,6 +28,7 @@
     <Compile Include="Decryption\**\*.cs" />
     <Compile Include="Http\**\*.cs" />
     <Compile Include="Analysis\**\*.cs" />
+    <Compile Include="Processes\**\*.cs" />
   </ItemGroup>
 
 </Project>

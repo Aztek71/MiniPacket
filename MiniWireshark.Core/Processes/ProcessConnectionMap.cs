@@ -1,8 +1,13 @@
 using System.Net;
-using System.Security.Cryptography;
 
 namespace MiniWireshark.Core.Processes;
 
+/// <summary>
+/// Index des sockets du systeme (connexions TCP, ecoutes TCP, sockets UDP) vers leur PID, et recherche d'un PID a
+/// partir des adresses et ports d'un paquet. Les entrees disparues de la table restent quelques secondes : les
+/// derniers paquets d'une connexion (FIN, ACK) arrivent souvent apres sa fermeture.
+/// Non thread-safe : l'appelant (ProcessAttributor) serialise les acces.
+/// </summary>
 internal sealed class ProcessConnectionMap
 {
     private sealed class Entry
@@ -21,7 +26,7 @@ internal sealed class ProcessConnectionMap
     {
         foreach (var c in connections)
         {
-            if (c.IsTcp && c.Listening)
+            if (c.IsTcp && c.IsListening)
                 Put(_tcpListeners, EndpointKey(c.LocalAddress, c.LocalPort), c.Pid, now);
             else if (c.IsTcp && c.RemoteAddress is not null)
                 Put(_tcpConnections, ConnectionKey(c.LocalAddress, c.LocalPort, c.RemoteAddress, c.RemotePort), c.Pid, now);
@@ -34,6 +39,11 @@ internal sealed class ProcessConnectionMap
         Expire(_udpSockets, now);
     }
 
+    /// <summary>
+    /// TCP : connexion exacte (dans un sens ou dans l'autre), sinon socket en ecoute (un SYN entrant arrive avant
+    /// que la connexion existe). UDP : pas d'adresse distante, on cherche le socket local ; <paramref name="isLocal"/>
+    /// evite de confondre le port d'un serveur distant avec un port local identique.
+    /// </summary>
     public int? Find(bool isTcp, IPAddress srcIp, ushort srcPort, IPAddress dstIp, ushort dstPort, Func<IPAddress, bool> isLocal)
     {
         if (isTcp)
@@ -45,6 +55,7 @@ internal sealed class ProcessConnectionMap
 
             return FindEndpoint(_tcpListeners, dstIp, dstPort) ?? FindEndpoint(_tcpListeners, srcIp, srcPort);
         }
+
         int? fromSource = isLocal(srcIp) ? FindEndpoint(_udpSockets, srcIp, srcPort) : null;
         return fromSource ?? (isLocal(dstIp) ? FindEndpoint(_udpSockets, dstIp, dstPort) : null);
     }
@@ -53,10 +64,11 @@ internal sealed class ProcessConnectionMap
     {
         if (sockets.TryGetValue(EndpointKey(address, port), out var exact))
             return exact.Pid;
-        
+
+        // Socket lie a "toutes les adresses" (0.0.0.0 ou ::)
         if (sockets.TryGetValue(WildcardKey(port), out var wildcard))
             return wildcard.Pid;
-        
+
         return null;
     }
 

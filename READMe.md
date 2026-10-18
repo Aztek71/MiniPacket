@@ -142,7 +142,6 @@ MiniWireshark
 
 ### In Progress
 - [ ] Complete integration of application-aware traffic analysis.
-- [ ] Finalize integration of HTTP/2 and HTTP/1.1 analysis.
 - [ ] Improve and validate live protocol statistics.
 - [ ] Refine TCP retransmission and anomaly indicators.
 

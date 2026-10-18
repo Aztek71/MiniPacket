@@ -3,6 +3,7 @@ using MiniWireshark.Core.Streams;
 using MiniWireshark.Core.Analysis;
 using MiniWireshark.Dissectors;
 using MiniWireshark.Models;
+using MiniWireshark.Core.Processes;
 using SharpPcap;
 using SharpPcap.LibPcap;
 
@@ -26,6 +27,9 @@ public sealed class PacketCaptureService : IDisposable
     /// <summary>Releve les anomalies reseau (retransmissions, RST, SYN sans reponse...).</summary>
     public PacketAnalyzer Analyzer { get; } = new();
 
+    /// <summary>Rattache les paquets TCP/UDP au processus (.exe) qui possede le socket.</summary>
+    public ProcessAttributor Processes { get; } = new();
+
     /// <summary>Declenche a chaque paquet entierement disseque.</summary>
     public event Action<CapturedPacket>? OnPacketCaptured;
 
@@ -44,6 +48,8 @@ public sealed class PacketCaptureService : IDisposable
         StreamTracker.Reset();
         Statistics.Reset();
         Analyzer.Reset();
+        Processes.Reset();
+        Processes.Start();
 
         _device = device;
         _device.OnPacketArrival += HandleRawPacket;
@@ -62,6 +68,7 @@ public sealed class PacketCaptureService : IDisposable
     public void Stop()
     {
         if (_device is null) return;
+        Processes.Stop();
         _device.StopCapture();
         _device.Close();
     }
@@ -107,6 +114,7 @@ public sealed class PacketCaptureService : IDisposable
         // Un seul point d'appel, apres la dissection complete (IPv4 ou IPv6) : packet.Tcp est deja renseigne si present.
         StreamTracker.Track(packet);
         Analyzer.Analyze(packet);
+        Processes.Attribute(packet);
         Statistics.Record(packet);
 
         return packet;

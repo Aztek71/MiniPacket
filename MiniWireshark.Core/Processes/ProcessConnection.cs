@@ -3,13 +3,13 @@ using System.Net;
 namespace MiniWireshark.Core.Processes;
 
 public sealed record ProcessConnection(
-    bool isTcp,
+    bool IsTcp,
     IPAddress LocalAddress,
     ushort LocalPort,
     IPAddress? RemoteAddress,
     ushort RemotePort,
     int Pid,
-    bool isListening);
+    bool IsListening);
 
 internal static class AddressText
 {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +10,7 @@ using MiniWireshark.Core.Streams;
 using MiniWireshark.Gui.Views;
 using MiniWireshark.Models;
 using SharpPcap;
+using System.ComponentModel.Design;
 
 namespace MiniWireshark.Gui.ViewModels;
 
@@ -56,6 +58,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private CapturedPacket? _selectedPacket;
 
+    private const string AllApplicationsLabel = "(All application)";
+
+    public ObservableCollection<string> Applications { get; } = new() { AllApplicationsLabel };
+
+    [ObservableProperty]
+    private string? _selectedApplication;
+
     public MainWindowViewModel()
     {
         foreach (var device in PacketCaptureService.ListDevices())
@@ -78,6 +87,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _anomalyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _anomalyTimer.Tick += (_, _) => FlagExpiredSyns();
         _anomalyTimer.Start();
+        _captureService.Processes.ProcessesResolved += OnProcessesResolved;
+        RefreshApplications();
     }
 
     partial void OnSelectedPacketChanged(CapturedPacket? value)
@@ -147,6 +158,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilter()
     {
+        SelectedApplication = null;
         DisplayFilterText = string.Empty;
         ApplyFilter();
     }
@@ -204,6 +216,75 @@ public partial class MainWindowViewModel : ViewModelBase
 
         foreach (var (packet, anomaly) in _captureService.Analyzer.ExpirePendingSyns())
             packet.AddAnomaly(anomaly);
+    }
+
+        partial void OnSelectedApplicationChanged(string? value)
+    {
+        // Choisir une application revient a appliquer le filtre display "process.name == ...".
+        DisplayFilterText = string.IsNullOrEmpty(value) || value == AllApplicationsLabel
+            ? string.Empty
+            : $"process.name == \"{value}\"";
+        ApplyFilter();
+    }
+
+    /// <summary>Relit la table des connexions du systeme et met a jour la liste des applications.</summary>
+    [RelayCommand]
+    private void RefreshApplications()
+    {
+        _captureService.Processes.RefreshNow();
+        MergeApplications(_captureService.Processes.GetApplicationNames());
+    }
+
+    private void MergeApplications(IEnumerable<string> names)
+    {
+        foreach (var name in names)
+        {
+            if (Applications.Contains(name))
+                continue;
+
+            // Insertion triee (apres l'entree de tete) : la liste ne saute pas sous le curseur quand elle s'enrichit.
+            int index = 1;
+            while (index < Applications.Count && string.Compare(Applications[index], name, StringComparison.OrdinalIgnoreCase) < 0)
+                index++;
+            Applications.Insert(index, name);
+        }
+    }
+
+    /// <summary>
+    /// Des paquets deja affiches viennent d'etre rattaches a un processus (leur connexion n'etait pas encore dans la
+    /// table du systeme quand ils sont arrives). Evenement leve sur un thread du timer : on repasse sur le thread UI.
+    /// </summary>
+    private void OnProcessesResolved(IReadOnlyList<(CapturedPacket Packet, int Pid, string Name)> resolved)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            bool filtering = !ReferenceEquals(_activeFilter, DisplayFilter.AcceptAll);
+
+            foreach (var (packet, pid, name) in resolved)
+            {
+                packet.SetProcess(pid, name);
+
+                // Un filtre sur l'application ne laissait pas passer ces paquets tant que leur processus etait inconnu :
+                // on les insere maintenant a leur place.
+                if (filtering && _activeFilter.Matches(packet))
+                    InsertIntoFilteredPackets(packet);
+            }
+
+            MergeApplications(_captureService.Processes.GetApplicationNames());
+            UpdateStatusMessage();
+        });
+    }
+
+    private void InsertIntoFilteredPackets(CapturedPacket packet)
+    {
+        // Le paquet doit appartenir a la capture en cours (une nouvelle a pu demarrer entre-temps).
+        int inCapture = PacketListSearch.BinarySearchByNumber(Packets, packet.Number);
+        if (inCapture < 0 || !ReferenceEquals(Packets[inCapture], packet))
+            return;
+
+        int index = PacketListSearch.BinarySearchByNumber(FilteredPackets, packet.Number);
+        if (index < 0)
+            FilteredPackets.Insert(~index, packet);
     }
 
     private void UpdateStatusMessage()

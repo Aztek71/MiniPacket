@@ -32,6 +32,27 @@ public sealed class CapturedPacket : INotifyPropertyChanged
     /// <summary>Numero de flux TCP (comme "tcp.stream" dans Wireshark) — null si le paquet n'a pas de couche TCP.</summary>
     public int? TcpStreamIndex { get; set; }
 
+        /// <summary>Processus (.exe) proprietaire du socket, quand il a pu etre identifie ; sinon null.</summary>
+    public int? ProcessId { get; private set; }
+
+    public string? ProcessName { get; private set; }
+
+    /// <summary>Texte de la colonne Processus : "chrome.exe (4812)", ou vide.</summary>
+    public string ProcessDisplay => ProcessName is null ? string.Empty : $"{ProcessName} ({ProcessId})";
+
+    /// <summary>
+    /// Inscrit le processus. Avant la publication du paquet (thread de capture) personne n'ecoute encore ;
+    /// pour un rattrapage apres coup, l'appelant doit etre sur le thread UI.
+    /// </summary>
+    public void SetProcess(int processId, string processName)
+    {
+        ProcessId = processId;
+        ProcessName = processName;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessId)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessName)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessDisplay)));
+    }
+    
     /// <summary>Anomalies relevees sur ce paquet (retransmission, RST, TTL tres bas...).</summary>
     public IReadOnlyList<PacketAnomaly> Anomalies => _anomalies;
 

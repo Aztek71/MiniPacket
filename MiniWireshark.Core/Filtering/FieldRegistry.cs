@@ -132,5 +132,9 @@ internal static class FieldRegistry
             // TLS
             ["tls"] = new(FieldKind.Protocol, p => p.Tls != null),
             ["tls.handshake.extensions_server_name"] = new(FieldKind.String, p => p.Tls?.ServerName),
+
+            // Own socket process
+            ["process.name"] = new(FieldKind.String, p => p.ProcessName),
+            ["process.id"] = new(FieldKind.Number, p => p.ProcessId != null ? (long)p.ProcessId.Value : null),
         };
 }

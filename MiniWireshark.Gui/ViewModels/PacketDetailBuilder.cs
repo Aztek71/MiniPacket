@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using MiniWireshark.Core.Analysis;
 using MiniWireshark.Models;
+using MiniWireshark.Core.Processes;
 
 namespace MiniWireshark.Gui.ViewModels;
 
@@ -16,6 +17,8 @@ public static class PacketDetailBuilder
 
         var frame = new PacketDetailNode($"Frame {packet.Number}: {packet.Length} bytes captured");
         frame.Add($"Timestamp: {packet.Timestamp:HH:mm:ss.fff}");
+        if (packet.ProcessName is not null)
+            frame.Add($"Processus : {packet.ProcessDisplay}");
         roots.Add(frame);
 
         if (packet.Ethernet is { } eth)

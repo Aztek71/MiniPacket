@@ -5,13 +5,13 @@ namespace MiniWireshark.Core.Http.Http2;
 public sealed class Http2Conversation : HttpConversation
 {
     /// <summary>Requetes et reponses, regroupees par flux (la requete avant sa reponse).</summary>
-    public IReadOnlyList<HttpMessage> Messages { get; init; } = Array.Empty<HttpMessage>();
+    public new IReadOnlyList<HttpMessage> Messages { get; init; } = Array.Empty<HttpMessage>();
 
     /// <summary>Trames de controle de la connexion : SETTINGS, PING, GOAWAY, RST_STREAM.</summary>
-    public IReadOnlyList<string> ConnectionEvents { get; init; } = Array.Empty<string>();
+    public new IReadOnlyList<string> ConnectionEvents { get; init; } = Array.Empty<string>();
 
     /// <summary>Anomalies rencontrees (trame tronquee, HPACK illisible...).</summary>
-    public IReadOnlyList<string> Problems { get; init; } = Array.Empty<string>();
+    public new IReadOnlyList<string> Problems { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>

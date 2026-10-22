@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MiniWireshark.Core;
+using MiniWireshark.Core.Localization;
 
 namespace MiniWireshark.Gui.ViewModels;
 
@@ -27,7 +28,7 @@ public partial class StatsWindowViewModel : ObservableObject, IDisposable
     private int _totalPackets;
 
     [ObservableProperty]
-    private string _totalBytesDisplay = "0 o";
+    private string _totalBytesDisplay = string.Empty;
 
     [ObservableProperty]
     private int _activeTcpStreams;
@@ -73,9 +74,10 @@ public partial class StatsWindowViewModel : ObservableObject, IDisposable
             TopTalkers.Add(new TalkerRow(talker.Address, talker.PacketCount, FormatBytes(talker.ByteCount)));
     }
 
+    /// <summary>Volume lisible, dans la langue choisie (o/Ko/Mo/Go ou B/KB/MB/GB, virgule ou point decimal).</summary>
     private static string FormatBytes(long bytes)
     {
-        string[] units = { "o", "Ko", "Mo", "Go" };
+        string[] units = { Localizer.T("unit_b"), Localizer.T("unit_kb"), Localizer.T("unit_mb"), Localizer.T("unit_gb") };
         double value = bytes;
         int unit = 0;
         while (value >= 1024 && unit < units.Length - 1)
@@ -83,7 +85,7 @@ public partial class StatsWindowViewModel : ObservableObject, IDisposable
             value /= 1024;
             unit++;
         }
-        return $"{value:0.#} {units[unit]}";
+        return $"{value.ToString("0.#", Localizer.Instance.Culture)} {units[unit]}";
     }
 
     /// <summary>Arrete le timer de rafraichissement — a appeler quand la fenetre se ferme, sinon elle tourne indefiniment.</summary>

@@ -1,9 +1,10 @@
 ﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MiniWireshark.Gui.ViewModels"
+        xmlns:loc="clr-namespace:MiniWireshark.Core.Localization;assembly=MiniWireshark.Core"
         x:Class="MiniWireshark.Gui.Views.StatsWindow"
         x:DataType="vm:StatsWindowViewModel"
-        Title="Statistiques en direct"
+        Title="{Binding [stats_title], Source={x:Static loc:Localizer.Instance}}"
         Width="620" Height="700">
 
     <ScrollViewer Margin="12">
@@ -12,26 +13,26 @@
             <!-- Totaux -->
             <Grid ColumnDefinitions="*,*,*,*">
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Paquets" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding [stats_packets], Source={x:Static loc:Localizer.Instance}}" Opacity="0.6" FontSize="11" />
                     <TextBlock Text="{Binding TotalPackets}" FontSize="20" FontWeight="Bold" />
                 </StackPanel>
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="Volume" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding [stats_volume], Source={x:Static loc:Localizer.Instance}}" Opacity="0.6" FontSize="11" />
                     <TextBlock Text="{Binding TotalBytesDisplay}" FontSize="20" FontWeight="Bold" />
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="Flux TCP" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding [stats_tcp_streams], Source={x:Static loc:Localizer.Instance}}" Opacity="0.6" FontSize="11" />
                     <TextBlock Text="{Binding ActiveTcpStreams}" FontSize="20" FontWeight="Bold" />
                 </StackPanel>
                 <StackPanel Grid.Column="3">
-                    <TextBlock Text="Paquets/s" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding [stats_pps], Source={x:Static loc:Localizer.Instance}}" Opacity="0.6" FontSize="11" />
                     <TextBlock Text="{Binding CurrentPacketsPerSecond}" FontSize="20" FontWeight="Bold" />
                 </StackPanel>
             </Grid>
 
-            <!-- Graphique paquets/seconde (derniere minute) -->
+            <!-- Graphique paquets/seconde (dernière minute) -->
             <StackPanel>
-                <TextBlock Text="Paquets par seconde (derniere minute)" FontWeight="Bold" Margin="0,0,0,6" />
+                <TextBlock Text="{Binding [stats_chart_title], Source={x:Static loc:Localizer.Instance}}" FontWeight="Bold" Margin="0,0,0,6" />
                 <Border Height="104" BorderBrush="Gray" BorderThickness="0,0,0,1">
                     <ItemsControl ItemsSource="{Binding PacketsPerSecondBars}">
                         <ItemsControl.ItemsPanel>
@@ -48,9 +49,9 @@
                 </Border>
             </StackPanel>
 
-            <!-- Repartition par protocole -->
+            <!-- Répartition par protocole -->
             <StackPanel>
-                <TextBlock Text="Repartition par protocole" FontWeight="Bold" Margin="0,0,0,6" />
+                <TextBlock Text="{Binding [stats_protocols], Source={x:Static loc:Localizer.Instance}}" FontWeight="Bold" Margin="0,0,0,6" />
                 <ItemsControl ItemsSource="{Binding ProtocolBreakdown}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -67,7 +68,7 @@
 
             <!-- Top talkers -->
             <StackPanel>
-                <TextBlock Text="Top talkers (par volume)" FontWeight="Bold" Margin="0,0,0,6" />
+                <TextBlock Text="{Binding [stats_talkers], Source={x:Static loc:Localizer.Instance}}" FontWeight="Bold" Margin="0,0,0,6" />
                 <ItemsControl ItemsSource="{Binding TopTalkers}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -81,7 +82,7 @@
                 </ItemsControl>
             </StackPanel>
 
-            <Button Content="Fermer" HorizontalAlignment="Right" Click="OnCloseClick" />
+            <Button Content="{Binding [stats_close], Source={x:Static loc:Localizer.Instance}}" HorizontalAlignment="Right" Click="OnCloseClick" />
 
         </StackPanel>
     </ScrollViewer>

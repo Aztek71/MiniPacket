@@ -1,26 +1,38 @@
 ﻿using System;
-using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniWireshark.Core;
 using MiniWireshark.Core.Filtering;
+using MiniWireshark.Core.Localization;
+using MiniWireshark.Core.Search;
 using MiniWireshark.Core.Streams;
 using MiniWireshark.Gui.Views;
 using MiniWireshark.Models;
 using SharpPcap;
-using System.ComponentModel.Design;
 
 namespace MiniWireshark.Gui.ViewModels;
 
+/// <summary>Une entree du selecteur de langue : le nom est affiche tel quel, dans sa propre langue.</summary>
+public sealed record LanguageOption(Language Language, string Name);
+
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private readonly DispatcherTimer _anomalyTimer;
+    /// <summary>Ce que dit actuellement la barre d'etat : on garde l'etat et non le texte, pour pouvoir le retraduire.</summary>
+    private enum StatusKind { Hint, Capturing, StartError, Counts }
+
     private readonly PacketCaptureService _captureService = new();
+    private readonly DispatcherTimer _anomalyTimer;
 
     /// <summary>Le filtre display actuellement actif — DisplayFilter.AcceptAll si aucun filtre n'est appliqué.</summary>
     private IPacketFilter _activeFilter = DisplayFilter.AcceptAll;
+
+    private StatusKind _statusKind = StatusKind.Hint;
+    private string _statusArgument = string.Empty;
+    private bool _suppressApplicationFilter;
+    private LanguageOption _selectedLanguageOption;
 
     /// <summary>Interfaces réseau disponibles, remplies une fois au démarrage.</summary>
     public ObservableCollection<ICaptureDevice> Interfaces { get; } = new();
@@ -33,6 +45,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Détail du paquet sélectionné — équivalent du panneau "Packet Details".</summary>
     public ObservableCollection<PacketDetailNode> DetailNodes { get; } = new();
+
+    /// <summary>Applications ayant des connexions reseau : un clic filtre la liste sur leur trafic. L'entree 0 = "toutes".</summary>
+    public ObservableCollection<string> Applications { get; } = new() { Localizer.T("app_all") };
+
+    public IReadOnlyList<LanguageOption> LanguageOptions { get; } = new[]
+    {
+        new LanguageOption(Language.French, "Français"),
+        new LanguageOption(Language.English, "English")
+    };
 
     [ObservableProperty]
     private ICaptureDevice? _selectedInterface;
@@ -53,22 +74,35 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _isCapturing;
 
     [ObservableProperty]
-    private string _statusMessage = "Sélectionne une interface puis clique sur Démarrer.";
+    private string _statusMessage = Localizer.T("status_hint");
+
+    [ObservableProperty]
+    private string _footerText = Localizer.T("footer_total", 0);
 
     [ObservableProperty]
     private CapturedPacket? _selectedPacket;
 
-    private const string AllApplicationsLabel = "(All application)";
-
-    public ObservableCollection<string> Applications { get; } = new() { AllApplicationsLabel };
-
     [ObservableProperty]
     private string? _selectedApplication;
+
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private bool _searchInContent;
+
+    [ObservableProperty]
+    private string _searchStatus = string.Empty;
+
+    /// <summary>Demande a la vue de faire defiler la liste jusqu'a ce paquet (la vue possede le DataGrid).</summary>
+    public event Action<CapturedPacket>? ScrollToPacketRequested;
 
     public MainWindowViewModel()
     {
         foreach (var device in PacketCaptureService.ListDevices())
             Interfaces.Add(device);
+
+        _selectedLanguageOption = Localizer.Instance.Language == Language.English ? LanguageOptions[1] : LanguageOptions[0];
 
         _captureService.OnPacketCaptured += packet =>
         {
@@ -80,31 +114,104 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (_activeFilter.Matches(packet))
                     FilteredPackets.Add(packet);
 
-                UpdateStatusMessage();
+                SetStatus(StatusKind.Counts);
             });
         };
+
         // Un SYN sans reponse ne se repere qu'apres coup : on verifie une fois par seconde pendant la capture.
         _anomalyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _anomalyTimer.Tick += (_, _) => FlagExpiredSyns();
         _anomalyTimer.Start();
+
+        // Des paquets deja affiches peuvent etre rattaches a leur processus apres coup (voir OnProcessesResolved).
         _captureService.Processes.ProcessesResolved += OnProcessesResolved;
-        RefreshApplications();
+
+        Localizer.Instance.LanguageChanged += OnLanguageChanged;
+
+        RefreshApplications();   // liste initiale : les applications qui ont deja des connexions
     }
 
-    partial void OnSelectedPacketChanged(CapturedPacket? value)
+    // ----- Langue -----
+
+    public LanguageOption SelectedLanguageOption
     {
-        DetailNodes.Clear();
-        if (value is null)
+        get => _selectedLanguageOption;
+        set
         {
-            FollowTcpStreamCommand.NotifyCanExecuteChanged();
-            return;
+            if (!SetProperty(ref _selectedLanguageOption, value) || value is null)
+                return;
+
+            Localizer.Instance.SetLanguage(value.Language);
+            LanguageSettings.Save(LanguageSettings.DefaultPath, value.Language);
+        }
+    }
+
+    /// <summary>
+    /// Les libelles XAML se rafraichissent tout seuls (liaisons sur l'indexeur du Localizer). Restent les textes
+    /// calcules ici : barre d'etat, entree "toutes les applications", panneau de detail, etat de la recherche.
+    /// </summary>
+    private void OnLanguageChanged()
+    {
+        RefreshStatusMessage();
+
+        // Retraduire l'entree 0 de la liste des applications ne doit surtout pas declencher un filtre.
+        _suppressApplicationFilter = true;
+        try
+        {
+            bool allWasSelected = SelectedApplication is not null && SelectedApplication == Applications[0];
+            Applications[0] = Localizer.T("app_all");
+            if (allWasSelected)
+                SelectedApplication = null;
+        }
+        finally
+        {
+            _suppressApplicationFilter = false;
         }
 
-        foreach (var node in PacketDetailBuilder.Build(value))
-            DetailNodes.Add(node);
+        SearchStatus = string.Empty;
+        RebuildDetails();
+    }
+
+    // ----- Barre d'etat -----
+
+    private void SetStatus(StatusKind kind, string argument = "")
+    {
+        _statusKind = kind;
+        _statusArgument = argument;
+        RefreshStatusMessage();
+    }
+
+    private void RefreshStatusMessage()
+    {
+        StatusMessage = _statusKind switch
+        {
+            StatusKind.Capturing => Localizer.T("status_capturing", _statusArgument),
+            StatusKind.StartError => Localizer.T("status_start_error", _statusArgument),
+            StatusKind.Counts => FilteredPackets.Count == Packets.Count
+                ? Localizer.T("status_captured", Packets.Count)
+                : Localizer.T("status_filtered", FilteredPackets.Count, Packets.Count),
+            _ => Localizer.T("status_hint")
+        };
+
+        FooterText = Localizer.T("footer_total", Packets.Count);
+    }
+
+    // ----- Selection et detail -----
+
+    partial void OnSelectedPacketChanged(CapturedPacket? value) => RebuildDetails();
+
+    private void RebuildDetails()
+    {
+        DetailNodes.Clear();
+
+        if (SelectedPacket is { } packet)
+            foreach (var node in PacketDetailBuilder.Build(packet))
+                DetailNodes.Add(node);
 
         FollowTcpStreamCommand.NotifyCanExecuteChanged();
     }
+
+    // ----- Capture -----
 
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void Start()
@@ -119,11 +226,11 @@ public partial class MainWindowViewModel : ViewModelBase
             DetailNodes.Clear();
             _captureService.Start(SelectedInterface, string.IsNullOrWhiteSpace(CaptureFilterText) ? null : CaptureFilterText);
             IsCapturing = true;
-            StatusMessage = $"Capture en cours sur {SelectedInterface.Description ?? SelectedInterface.Name}...";
+            SetStatus(StatusKind.Capturing, SelectedInterface.Description ?? SelectedInterface.Name);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Erreur au démarrage : {ex.Message}";
+            SetStatus(StatusKind.StartError, ex.Message);
         }
     }
 
@@ -134,10 +241,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _captureService.Stop();
         IsCapturing = false;
-        UpdateStatusMessage();
+        SetStatus(StatusKind.Counts);
     }
 
     private bool CanStop() => IsCapturing;
+
+    // ----- Filtre display -----
 
     /// <summary>Parse et applique le filtre display saisi. En cas d'erreur de syntaxe, le filtre actif précédent est conservé.</summary>
     [RelayCommand]
@@ -158,7 +267,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilter()
     {
-        SelectedApplication = null;
+        SelectedApplication = null;   // la liste des applications se remet sur "aucun filtre"
         DisplayFilterText = string.Empty;
         ApplyFilter();
     }
@@ -170,8 +279,60 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_activeFilter.Matches(packet))
                 FilteredPackets.Add(packet);
 
-        UpdateStatusMessage();
+        SetStatus(StatusKind.Counts);
     }
+
+    // ----- Recherche dans la liste -----
+
+    partial void OnSearchTextChanged(string value) => SearchStatus = string.Empty;
+
+    [RelayCommand]
+    private void FindNext() => FindMatch(forward: true);
+
+    [RelayCommand]
+    private void FindPrevious() => FindMatch(forward: false);
+
+    /// <summary>
+    /// Deplace la selection sur la correspondance suivante (ou precedente) dans la liste affichee, avec retour au debut
+    /// ou a la fin. La recherche est refaite a chaque appel : la liste grossit pendant la capture.
+    /// </summary>
+    private void FindMatch(bool forward)
+    {
+        string query = (SearchText ?? string.Empty).Trim();
+        if (query.Length == 0)
+        {
+            SearchStatus = Localizer.T("search_empty");
+            return;
+        }
+
+        var matches = PacketSearch.FindAll(FilteredPackets, query, SearchInContent);
+        if (matches.Count == 0)
+        {
+            SearchStatus = Localizer.T("search_none");
+            return;
+        }
+
+        int current = -1;
+        if (SelectedPacket is { } selected)
+        {
+            int index = PacketListSearch.BinarySearchByNumber(FilteredPackets, selected.Number);
+            if (index >= 0)
+                current = index;
+        }
+
+        int position = PacketSearch.NextPosition(matches, current, forward);
+        int target = matches[position];
+
+        bool wrapped = current >= 0 && (forward ? target <= current : target >= current);
+        SearchStatus = Localizer.T("search_result", position + 1, matches.Count)
+                       + (wrapped ? " — " + Localizer.T("search_wrapped") : string.Empty);
+
+        var packet = FilteredPackets[target];
+        SelectedPacket = packet;
+        ScrollToPacketRequested?.Invoke(packet);
+    }
+
+    // ----- Flux TCP et statistiques -----
 
     /// <summary>
     /// Ouvre une fenetre affichant la conversation TCP reconstituee du paquet selectionne.
@@ -196,7 +357,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private bool CanFollowTcpStream() => SelectedPacket?.TcpStreamIndex is not null;
-    
+
     /// <summary>Ouvre la fenetre de statistiques en direct (paquets/s, repartition protocole, top talkers).</summary>
     [RelayCommand]
     private void OpenStats()
@@ -208,6 +369,8 @@ public partial class MainWindowViewModel : ViewModelBase
         window.Show();
     }
 
+    // ----- Anomalies detectees apres coup -----
+
     /// <summary>Marque les SYN restes sans reponse. Execute sur le thread UI : la liste reagit au changement.</summary>
     private void FlagExpiredSyns()
     {
@@ -218,12 +381,18 @@ public partial class MainWindowViewModel : ViewModelBase
             packet.AddAnomaly(anomaly);
     }
 
-        partial void OnSelectedApplicationChanged(string? value)
+    // ----- Filtre par application -----
+
+    private static bool IsAllApplications(string? value) =>
+        string.IsNullOrEmpty(value) || value == Localizer.T("app_all");
+
+    partial void OnSelectedApplicationChanged(string? value)
     {
+        if (_suppressApplicationFilter)
+            return;
+
         // Choisir une application revient a appliquer le filtre display "process.name == ...".
-        DisplayFilterText = string.IsNullOrEmpty(value) || value == AllApplicationsLabel
-            ? string.Empty
-            : $"process.name == \"{value}\"";
+        DisplayFilterText = IsAllApplications(value) ? string.Empty : $"process.name == \"{value}\"";
         ApplyFilter();
     }
 
@@ -271,7 +440,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             MergeApplications(_captureService.Processes.GetApplicationNames());
-            UpdateStatusMessage();
+            SetStatus(StatusKind.Counts);
         });
     }
 
@@ -285,13 +454,6 @@ public partial class MainWindowViewModel : ViewModelBase
         int index = PacketListSearch.BinarySearchByNumber(FilteredPackets, packet.Number);
         if (index < 0)
             FilteredPackets.Insert(~index, packet);
-    }
-
-    private void UpdateStatusMessage()
-    {
-        StatusMessage = FilteredPackets.Count == Packets.Count
-            ? $"{Packets.Count} paquet(s) capturé(s)"
-            : $"{FilteredPackets.Count} / {Packets.Count} paquet(s) affiché(s) (filtre actif)";
     }
 
     partial void OnIsCapturingChanged(bool value)

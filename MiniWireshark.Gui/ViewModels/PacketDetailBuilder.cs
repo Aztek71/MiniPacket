@@ -2,6 +2,7 @@
 using MiniWireshark.Core.Analysis;
 using MiniWireshark.Models;
 using MiniWireshark.Core.Processes;
+using MiniWireshark.Core.Localization;
 
 namespace MiniWireshark.Gui.ViewModels;
 
@@ -18,7 +19,7 @@ public static class PacketDetailBuilder
         var frame = new PacketDetailNode($"Frame {packet.Number}: {packet.Length} bytes captured");
         frame.Add($"Timestamp: {packet.Timestamp:HH:mm:ss.fff}");
         if (packet.ProcessName is not null)
-            frame.Add($"Processus : {packet.ProcessDisplay}");
+            frame.Add(Localizer.T("detail_process", packet.ProcessDisplay));
         roots.Add(frame);
 
         if (packet.Ethernet is { } eth)
@@ -131,16 +132,16 @@ public static class PacketDetailBuilder
             roots.Add(node);
         }
 
-        if (packet.Anomalies.Count > 0)
+                if (packet.Anomalies.Count > 0)
         {
-            var node = new PacketDetailNode($"Analyse : {packet.Anomalies.Count} anomalie(s) détectée(s)");
+            var node = new PacketDetailNode(Localizer.T("detail_anomalies", packet.Anomalies.Count));
             foreach (var anomaly in packet.Anomalies)
             {
                 string severity = anomaly.Severity switch
                 {
-                    AnomalySeverity.Error => "Erreur",
-                    AnomalySeverity.Warning => "Attention",
-                    _ => "Info"
+                    AnomalySeverity.Error => Localizer.T("severity_error"),
+                    AnomalySeverity.Warning => Localizer.T("severity_warning"),
+                    _ => Localizer.T("severity_info")
                 };
                 node.Add($"[{severity}] {anomaly.Label} : {anomaly.Description}");
             }

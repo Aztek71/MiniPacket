@@ -29,6 +29,8 @@
     <Compile Include="Http\**\*.cs" />
     <Compile Include="Analysis\**\*.cs" />
     <Compile Include="Processes\**\*.cs" />
+    <Compile Include="Localization\**\*.cs" />
+    <Compile Include="Search\**\*.cs" />
   </ItemGroup>
 
 </Project>
